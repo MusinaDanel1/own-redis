@@ -41,6 +41,8 @@ func main() {
 	fmt.Printf("UDP server listening on port: %s\n", *port)
 
 	buffer := make([]byte, 1024)
+	var data []string
+	var command string
 	for {
 		n, remoteAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
@@ -48,7 +50,28 @@ func main() {
 			continue
 		}
 
-		message := strings.TrimSpace(string(buffer[:n]))
-		fmt.Printf("Received '%s' from %s\n", message, remoteAddr)
+		data = strings.Fields(string(buffer[:n]))
+		fmt.Printf("Received '%s' from %s\n", data, remoteAddr)
+
+		if len(data) != 0 {
+			command = strings.ToUpper(data[0])
+		}
+		switch command {
+		case "PING":
+			_, err := conn.WriteToUDP([]byte("PONG\n"), remoteAddr)
+			var command1 string
+			command = command1
+			if err != nil {
+				log.Printf("Error sending to UDP: %v", err)
+			}
+		case "SET":
+			//проверить количество аргументов, объединить значение, обработать РХ и сохранить данные
+		case "GET":
+			//Получить значение по ключу и вернуть его,  либо (nil) если не найдено или просрочено
+		default:
+			fmt.Println("This program has only PING, SET, GET command")
+		}
+
 	}
+
 }
