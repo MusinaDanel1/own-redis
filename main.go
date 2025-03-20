@@ -6,8 +6,21 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
+
+var (
+	store = make(map[string]Entry)
+	mu    sync.RWMutex
+)
+
+type Entry struct {
+	value     string
+	expiresAt time.Time
+}
 
 func main() {
 	port := flag.String("port", "8080", "Port number for UDP server")
@@ -43,6 +56,7 @@ func main() {
 	buffer := make([]byte, 1024)
 	var data []string
 	var command string
+	var command1 string
 	for {
 		n, remoteAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
@@ -58,14 +72,12 @@ func main() {
 		}
 		switch command {
 		case "PING":
-			_, err := conn.WriteToUDP([]byte("PONG\n"), remoteAddr)
-			var command1 string
+			sendResponse(conn, remoteAddr, "PONG")
 			command = command1
-			if err != nil {
-				log.Printf("Error sending to UDP: %v", err)
-			}
 		case "SET":
-			//проверить количество аргументов, объединить значение, обработать РХ и сохранить данные
+			message := handleSet(data)
+			sendResponse(conn, remoteAddr, message)
+			command = command1
 		case "GET":
 			//Получить значение по ключу и вернуть его,  либо (nil) если не найдено или просрочено
 		default:
@@ -74,4 +86,52 @@ func main() {
 
 	}
 
+}
+
+func sendResponse(conn *net.UDPConn, remoteAddr *net.UDPAddr, response string) {
+	_, err := conn.WriteToUDP([]byte(response), remoteAddr)
+	if err != nil {
+		log.Printf("Error sending response: %v", err)
+	}
+}
+
+func handleSet(args []string) string {
+	if len(args) < 3 {
+		return "(Error) ERR  wrong number of arguments for 'SET' command"
+	}
+	key := args[1]
+	var value string
+	var expiration time.Time
+	var expireMillis int
+	var position int = -1
+
+	for i := 2; i < len(args); i++ {
+		if strings.EqualFold(args[i], "PX") {
+			position = i
+			break
+		}
+	}
+	if position != -1 {
+		if position+1 >= len(args) {
+			return "(Error) ERR wrong number of arguments for 'SET' command"
+		}
+		value = strings.Join(args[2:position], " ")
+		var err error
+		expireMillis, err = strconv.Atoi(args[position+1])
+		if err != nil {
+			return "(Error) ERR invalid PX value"
+		}
+		expiration = time.Now().Add(time.Duration(expireMillis) * time.Millisecond)
+	} else {
+		value = strings.Join(args[2:], " ")
+	}
+
+	mu.Lock()
+	store[key] = Entry{
+		value:     value,
+		expiresAt: expiration,
+	}
+	mu.Unlock()
+
+	return "OK"
 }
