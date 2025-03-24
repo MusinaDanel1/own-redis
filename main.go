@@ -79,6 +79,9 @@ func main() {
 			sendResponse(conn, remoteAddr, message)
 			command = command1
 		case "GET":
+			message1 := handleGet(data)
+			sendResponse(conn, remoteAddr, message1)
+			command = command1
 			//Получить значение по ключу и вернуть его,  либо (nil) если не найдено или просрочено
 		default:
 			fmt.Println("This program has only PING, SET, GET command")
@@ -89,7 +92,7 @@ func main() {
 }
 
 func sendResponse(conn *net.UDPConn, remoteAddr *net.UDPAddr, response string) {
-	_, err := conn.WriteToUDP([]byte(response), remoteAddr)
+	_, err := conn.WriteToUDP([]byte(response+"\n"), remoteAddr)
 	if err != nil {
 		log.Printf("Error sending response: %v", err)
 	}
@@ -134,4 +137,29 @@ func handleSet(args []string) string {
 	mu.Unlock()
 
 	return "OK"
+}
+
+func handleGet(args []string) string {
+	if len(args) < 2 {
+		return "(Error) ERR wrong number of arguments for 'GET' command"
+	}
+	key := args[1]
+	mu.RLock()
+	entry, exists := store[key]
+	mu.RUnlock()
+
+	if !exists {
+		return "(nil)"
+	}
+
+	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
+		mu.Lock()
+		entry, exists = store[key]
+		if exists && !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
+			delete(store, key)
+		}
+		mu.Unlock()
+		return "(nil)"
+	}
+	return entry.value
 }
