@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-func handlePing() string {
+func handlePing(args []string) string {
+	if len(args) != 1 {
+		return "(Error) ERR wrong number of arguments for 'PING' command"
+	}
 	return "PONG"
 }
 
@@ -14,7 +17,10 @@ func handleSet(args []string) string {
 	if len(args) < 3 {
 		return "(Error) ERR wrong number of arguments for 'SET' command"
 	}
-	key := args[1]
+	key := strings.TrimSpace(args[1])
+	if key == "" {
+		return "(Error) ERR key cannot be empty"
+	}
 
 	var value string
 	var expiration time.Time
@@ -32,6 +38,9 @@ func handleSet(args []string) string {
 			return "(Error) ERR wrong number of arguments for 'SET' command"
 		}
 		value = strings.Join(args[2:pxIndex], " ")
+		if strings.TrimSpace(value) == "" {
+			return "(Error) ERR value cannot be empty"
+		}
 		pxValue, err := strconv.Atoi(args[pxIndex+1])
 		if err != nil {
 			return "(Error) ERR invalid PX value"
@@ -39,6 +48,9 @@ func handleSet(args []string) string {
 		expiration = time.Now().Add(time.Duration(pxValue) * time.Millisecond)
 	} else {
 		value = strings.Join(args[2:], " ")
+		if strings.TrimSpace(value) == "" {
+			return "(Error) ERR value cannot be empty"
+		}
 	}
 
 	mu.Lock()
@@ -53,9 +65,12 @@ func handleSet(args []string) string {
 
 func handleGet(args []string) string {
 	if len(args) < 2 {
-		return "(nil)"
+		return "(Error) ERR wrong number of arguments for 'GET' command"
 	}
-	key := args[1]
+	key := strings.TrimSpace(args[1])
+	if key == "" {
+		return "(Error) ERR key cannot be empty"
+	}
 
 	mu.RLock()
 	entry, exists := store[key]
@@ -85,7 +100,7 @@ func dispatchCommand(args []string) string {
 	command := strings.ToUpper(args[0])
 	switch command {
 	case "PING":
-		return handlePing()
+		return handlePing(args)
 	case "SET":
 		return handleSet(args)
 	case "GET":

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -27,6 +28,16 @@ func main() {
 	if *help {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	portNum, err := strconv.Atoi(*port)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid port number: %v\n", err)
+		os.Exit(1)
+	}
+	if portNum < 1 || portNum > 65535 {
+		fmt.Fprintf(os.Stderr, "Port number must be between 1 and 65535\n")
+		os.Exit(1)
 	}
 
 	startUDPServer(*port)
