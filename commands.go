@@ -17,40 +17,43 @@ func handleSet(args []string) string {
 	if len(args) < 3 {
 		return "(Error) ERR wrong number of arguments for 'SET' command"
 	}
-	key := strings.TrimSpace(args[1])
+
+	var pxValue int
+	var err error
+	filtered := []string{args[0]}
+
+	for i := 1; i < len(args); i++ {
+		if strings.EqualFold(args[i], "PX") {
+			if i+1 >= len(args) {
+				return "(Error) ERR wrong number of arguments for 'SET' command"
+			}
+			pxValue, err = strconv.Atoi(args[i+1])
+			if err != nil || pxValue <= 0 {
+				return "(Error) ERR invalid PX value, must be greater than zero"
+			}
+			i++
+		} else {
+			filtered = append(filtered, args[i])
+		}
+	}
+
+	if len(filtered) < 3 {
+		return "(Error) ERR wrong number of arguments for 'SET' command: key and value must be provided"
+	}
+
+	key := strings.TrimSpace(filtered[1])
 	if key == "" {
 		return "(Error) ERR key cannot be empty"
 	}
 
-	var value string
-	var expiration time.Time
-	pxIndex := -1
-
-	for i := 2; i < len(args); i++ {
-		if strings.EqualFold(args[i], "PX") {
-			pxIndex = i
-			break
-		}
+	value := strings.TrimSpace(strings.Join(filtered[2:], " "))
+	if value == "" {
+		return "(Error) ERR value cannot be empty"
 	}
 
-	if pxIndex != -1 {
-		if pxIndex+1 >= len(args) {
-			return "(Error) ERR wrong number of arguments for 'SET' command"
-		}
-		value = strings.Join(args[2:pxIndex], " ")
-		if strings.TrimSpace(value) == "" {
-			return "(Error) ERR value cannot be empty"
-		}
-		pxValue, err := strconv.Atoi(args[pxIndex+1])
-		if err != nil {
-			return "(Error) ERR invalid PX value"
-		}
+	var expiration time.Time
+	if pxValue > 0 {
 		expiration = time.Now().Add(time.Duration(pxValue) * time.Millisecond)
-	} else {
-		value = strings.Join(args[2:], " ")
-		if strings.TrimSpace(value) == "" {
-			return "(Error) ERR value cannot be empty"
-		}
 	}
 
 	mu.Lock()
